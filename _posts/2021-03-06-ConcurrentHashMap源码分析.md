@@ -97,7 +97,7 @@ get 方法不需要加锁。因为 Node 的元素 value 和指针 next 是用 vo
 - 保证线程安全机制：JDK1.7 采用 Segment 的分段锁机制实现线程安全，其中 Segment 继承自 ReentrantLock 。JDK1.8 采用`CAS+synchronized`保证线程安全。
 - 保证线程安全机制：JDK1.7 采用 Segment 的分段锁机制实现线程安全，其中 Segment 继承自 ReentrantLock 。JDK1.8 采用`CAS+synchronized`保证线程安全。
 - 锁的粒度：JDK1.7 是对需要进行数据操作的 Segment 加锁，JDK1.8 调整为**对每个数组元素加锁（Node）**
-- JDK1.8  Node 是类似于一个 HashEntry 的结构。它的冲突再达到一定大小时会转化成红黑树，在冲突小于一定数量时又退回链表。
+- JDK1.8  Node 是类似于一个 HashEntry 的结构。它的冲突再达到一定大小时会转化成红黑树，在冲突小于一定数量时又退回链表。而 HashEntry 数组之间只能用链表
 
 ### ConcurrentHashMap 和 Hashtable 的效率哪个更高？为什么？
 
