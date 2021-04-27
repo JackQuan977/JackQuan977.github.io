@@ -12,8 +12,6 @@ tags:
 
 ## ConcurrentHashMap 1.7
 
-原文地址：https://mp.weixin.qq.com/s/AHWzboztt53ZfFZmsSnMSw  
-
 ###  存储结构
 
 ![image-20210422133616043](../../../../AppData/Roaming/Typora/typora-user-images/image-20210422133616043.png)
@@ -96,7 +94,7 @@ get 方法不需要加锁。因为 Node 的元素 value 和指针 next 是用 vo
 - 数据结构：取消了 Segment 分段锁的数据结构，取而代之的是数组+链表+红黑树的结构。
 - 保证线程安全机制：JDK1.7 采用 Segment 的分段锁机制实现线程安全，其中 Segment 继承自 ReentrantLock 。JDK1.8 采用`CAS+synchronized`保证线程安全。
 - 保证线程安全机制：JDK1.7 采用 Segment 的分段锁机制实现线程安全，其中 Segment 继承自 ReentrantLock 。JDK1.8 采用`CAS+synchronized`保证线程安全。
-- 锁的粒度：JDK1.7 是对需要进行数据操作的 Segment 加锁，JDK1.8 调整为**对每个数组元素加锁（Node）**
+- 锁的粒度：JDK1.7 是对需要进行数据操作的 Segment 加锁，JDK1.8 调整为**对每个哈希桶数组元素加锁（Node）**
 - JDK1.8  Node 是类似于一个 HashEntry 的结构。它的冲突再达到一定大小时会转化成红黑树，在冲突小于一定数量时又退回链表。而 HashEntry 数组之间只能用链表
 
 ### ConcurrentHashMap 和 Hashtable 的效率哪个更高？为什么？
@@ -107,6 +105,11 @@ ConcurrentHashMap 的效率要高于 Hashtable，因为 Hashtable 给整个哈�
 
 - 在 JDK1.6 中，对 synchronized 锁的实现引入了大量的优化，并且 synchronized 有多种锁状态，会从无锁 -> 偏向锁 -> 轻量级锁 -> 重量级锁一步步转换。
 - 减少内存开销 。假设使用可重入锁来获得同步支持，那么每个节点都需要通过继承 AQS 来获得同步支持。但并不是每个节点都需要获得同步支持的，只有链表的头节点（红黑树的根节点）需要同步，这无疑带来了巨大内存浪费。
+
+### JDK1.8对比JDK1.7主要改进了什么
+
+- Java 7 Segment扩容时阻塞所有线程
+- 调用size()方法可能引起全局锁
 
 ## 总结
 
