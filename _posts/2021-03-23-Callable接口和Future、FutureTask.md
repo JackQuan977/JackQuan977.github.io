@@ -83,7 +83,10 @@ public interface Future<V> {
 
 ### FutureTask
 
-Future只是一个接口，无法用来直接创建对象，所以有了FutureTask
+Future只是一个接口，无法用来直接创建对象，所以有了FutureTask。**FutureTask实现了RunnableFuture接口**，即Runnable接口和Future接口。
+其中Runnable接口对应了FutureTask名字中的`Task`，代表FutureTask本质上也是表征了一个任务。而Future接口就对应了FutureTask名字中的`Future`，表示了我们对于这个任务可以执行某些操作，例如，判断任务是否执行完毕，获取任务的执行结果，取消任务的执行等。
+
+所以简单来说，**FutureTask本质上就是一个“Task”，我们可以把它当做简单的Runnable对象来使用。*但是它又同时实现了Future接口，因此我们可以对它所代表的“Task”进行额外的控制操作。**
 
 ~~~java
 public class FutureTask<V> implements RunnableFuture<V>
@@ -164,6 +167,11 @@ task运行结果4950
 
 
 ### 使用Callable+FutureTask获取执行结果
+
+- 创建一个类实现Callable接口，重写call方法
+- 创建一个FutureTask，指定Callable对象，作为线程任务
+- 创建线程，指定线程任务
+- 启动线程
 
 ~~~java
 public class Test {
