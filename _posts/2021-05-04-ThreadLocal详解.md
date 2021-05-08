@@ -12,6 +12,16 @@ tags:
 
 # ThreadLocal详解
 
+### Thread类
+
+~~~java
+public class Thread implements Runnable{
+    ThreadLocal.ThreadLocalMap threadLocals = null;
+}
+~~~
+
+Thread`中有一个 `threadLocals` 属性表示线程的本地变量。这个属性的类型是 `ThreadLocal.ThreadLocalMap
+
 ### ThreadLocal是什么
 
 ​	ThreadLocal是JDK提供的，它提供了**线程本地变量**，也就是如果你创建了一个ThreadLocal变量，**那么每个访问这个变量的线程都会有这个变量的一个本地副本**，多线程操作这个变量时，实际上操作的就是这个变量副本，保证了多个线程之间互不干扰。
@@ -20,19 +30,21 @@ tags:
 
 ### ThreadLoalMap
 
-​	从名字上看，可以猜到它也是一个类似HashMap的数据结构，但是在ThreadLocal中，并没实现Map接口。
+​	从名字上看，可以猜到它也是一个类似HashMap的数据结构，是ThreadLocal的一个内部类，是一个类Map结构。
 
-在ThreadLoalMap中，也是初始化一个大小16的Entry数组，Entry对象用来保存每一个key-value键值对，只不过这里的**key永远都是ThreadLocal对象**，是不是很神奇，**通过ThreadLocal对象的set方法，结果把ThreadLocal对象自己当做key，放进了ThreadLoalMap中。**
+​	在ThreadLoalMap中，也是初始化一个大小16的Entry数组，Entry对象用来保存每一个key-value键值对，只不过这里的**key永远都是ThreadLocal对象**，**并且是一个弱引用。**是不是很神奇，**通过ThreadLocal对象的set方法，结果把ThreadLocal对象自己当做key，放进了ThreadLoalMap中。**
 
 ​	每个线程在往`ThreadLocal`里放值的时候，都会往自己的`ThreadLocalMap`里存，读也是以`ThreadLocal`作为引用，在自己的`map`里找对应的`key`，从而实现了**线程隔离**。
 
-`ThreadLocalMap`有点类似`HashMap`的结构，只是`HashMap`是由**数组+链表**实现的，而`ThreadLocalMap`中并没有**链表**结构。
-
-我们还要注意`Entry`， 它的`key`是`ThreadLocal<?> k` ，继承自`WeakReference`， 也就是我们常说的弱引用类型。
+**我们还要注意`Entry`， 它的`key`是`ThreadLocal<?> k` ，继承自`WeakReference`， 也就是我们常说的弱引用类型。**
 
 ![image-20210504223135602](C:\Users\ql\AppData\Roaming\Typora\typora-user-images\image-20210504223135602.png)
 
-这里需要注意的是，**ThreadLoalMap的Entry是继承WeakReference**，和HashMap很大的区别是，Entry中没有next字段，所以就不存在链表的情况了。
+这里需要注意的是，**ThreadLoalMap的Entry是继承WeakReference**，和HashMap很大的区别是，**Entry中没有next字段**，所以就不存在链表的情况了。
+
+![image-20210508194928019](2021-05-04-ThreadLocal详解.assets/image-20210508194928019.png)
+
+
 
 ### ThreadLocal
 
@@ -44,7 +56,7 @@ localName.set("全力");
 String name = localName.get();
 ~~~
 
-在线程1中初始化了一个ThreadLocal对象localName，并通过set方法，保存了一个值全力，同时在线程1中通过`localName.get()`可以拿到之前设置的值，但是如果在线程2中，拿到的将是一个null。
+在线程1中初始化了一个ThreadLocal对象localName，并通过set方法，保存了一个值全力，同时在线程1中通过`localName.get()`可以拿到之前设置的值，但是如果在线程2中，拿到的将是一个null。**当我们调用 `set(v)`方法时，就是以当前 `ThreadLocal`变量为 `key`，传入参数为 `value`，向 `ThreadLocal.ThreadLocalMap`存数据**;**当我们调用 `get()`方法时，就是以当前 `ThreadLocal`变量为 `key`，从 `ThreadLocal.ThreadLocalMap`取对应的数据**
 
 这是为什么，如何实现？不过之前也说了，ThreadLocal保证了各个线程的数据互不干扰。
 
@@ -52,11 +64,17 @@ String name = localName.get();
 
 ~~~java
  public void set(T value) {
+     //1. 获取当前线程实例对象
     Thread t = Thread.currentThread();
+      
+	//2. 通过当前线程实例获取到ThreadLocalMap对象
     ThreadLocalMap map = getMap(t);
     if (map != null)
+        //3. 如果Map不为null,则以当前threadLocl实例为key,值为value进行存入
         map.set(this, value);
     else
+         
+		//4.map为null,则新建ThreadLocalMap并存入value
         createMap(t, value);
 }
 
@@ -79,7 +97,7 @@ ThreadLocalMap getMap(Thread t) {
 }
 ~~~
 
-可以发现，**每个线程中都有一个`ThreadLocalMap`数据结构，当执行set方法时，其值是保存在当前线程的`threadLocals`变量中**，当执行set方法中，是从当前线程的`threadLocals`变量获取。
+可以发现，**每个线程中都有一个`ThreadLocalMap`数据结构，当执行set方法时，其值是保存在当前线程的`threadLocals`变量中**，当执行get方法中，是从当前线程的`threadLocals`变量获取。
 
 所以在线程1中set的值，对线程2来说是摸不到的，而且在线程2中重新set的话，也不会影响到线程1中的值，保证了线程之间不会相互干扰。
 
@@ -87,55 +105,9 @@ ThreadLocalMap getMap(Thread t) {
 
 没有链表结构，那发生hash冲突了怎么办？
 
-先看看ThreadLoalMap中插入一个key-value的实现
+采用**线性探测**的方式，根据 `key`计算 `hash`值，**如果出现冲突，则向后探测**，当到哈希表末尾的时候再从0开始，直到找到一个合适的位置。
 
-~~~java
-private void set(ThreadLocal<?> key, Object value) {
-    Entry[] tab = table;
-    int len = tab.length;
-    int i = key.threadLocalHashCode & (len-1);
-
-    for (Entry e = tab[i];
-         e != null;
-         e = tab[i = nextIndex(i, len)]) {
-        ThreadLocal<?> k = e.get();
-
-        if (k == key) {
-            e.value = value;
-            return;
-        }
-
-        if (k == null) {
-            replaceStaleEntry(key, value, i);
-            return;
-        }
-    }
-
-    tab[i] = new Entry(key, value);
-    int sz = ++size;
-    if (!cleanSomeSlots(i, sz) && sz >= threshold)
-        rehash();
-}
-~~~
-
-每个ThreadLocal对象都有一个hash值`threadLocalHashCode`，每初始化一个ThreadLocal对象，hash值就增加一个固定的大小`0x61c88647`。
-
-在插入过程中，**根据ThreadLocal对象的hash值，定位到table中的位置i**，过程如下：
- 1、如果当前位置是空的，那么正好，就初始化一个Entry对象放在位置i上；
- 2、不巧，位置i已经有Entry对象了，如果这个Entry对象的key正好是即将设置的key，那么重新设置Entry中的value；
- 3、很不巧，位置i的Entry对象，和即将设置的key没关系，那么只能找下一个空位置；
-
-这样的话，在get的时候，也会**根据ThreadLocal对象的hash值**，定位到table中的位置，然后判断该位置Entry对象中的key是否和get的key一致，如果不一致，就判断下一个位置
-
-可以发现，set和get如果冲突严重的话，效率很低，因为ThreadLoalMap是Thread的一个属性，所以即使在自己的代码中控制了设置的元素个数，但还是不能控制其它代码的行为。
-
-### 如何解决hash冲突
-
-![image-20210504230614054](C:\Users\ql\AppData\Roaming\Typora\typora-user-images\image-20210504230614054.png)
-
-如上图所示，如果我们插入一个`value=27`的数据，通过`hash`计算后应该落入第4个槽位中，而槽位4已经有了`Entry`数据。
-
-此时就会线性向后查找，一直找到`Entry`为`null`的槽位才会停止查找，将当前元素放入此槽位中
+这种算法也决定了 `ThreadLocalMap`不适合存储大量数据。
 
 ### 内存泄露
 
